@@ -1,6 +1,8 @@
 # all imports
 import itertools, pandas as pd
 import requests, pprint, time
+import gzip, shutil
+import math, numpy as np
 import concurrent.futures
 from bs4 import BeautifulSoup
 from config import *
@@ -15,7 +17,10 @@ class EdgarData:
     def __init__(self, name):
         self.name = name
         self.directory = OUTPUT_DIR + "/" + name
-        os.mkdir(self.directory)
+        try:
+            os.mkdir(self.directory)
+        except:
+            print("{} already exists".format(self.directory))
 
     # limits the number of requests to less than 10 per second
     def limit_request(self, url):
@@ -32,11 +37,6 @@ class EdgarData:
         page = requests.get(url)
         NUM_REQUESTS += 1
         return page
-
-    # returns a file directory path
-    def make_directory(self, name):
-        filename = self.directory + "/" + name
-        return filename
 
     # returns a url with all items in comp appended to url
     def make_url(self, url , components):
@@ -67,7 +67,7 @@ class EdgarData:
             for ii in range(1,5):
                 daily_urls.append(self.make_url(base_url, [i, 'QTR{}/'.format(ii)]))
 
-        filename = self.make_directory("urls.csv")
+        filename = "{}/urls.csv".format(self.directory)
         df = pd.DataFrame({'URLs' : daily_urls})
         df.to_csv(filename, index=False, header=True)
 
@@ -96,6 +96,8 @@ class EdgarData:
 
     # grabs all the 10k filings from a master file
     def master_10k(self, filename):
+        print("{}\n".format(filename))
+
         with open(filename, 'r') as f:
             lines = f.readlines()
 
@@ -112,18 +114,20 @@ class EdgarData:
                 line = line.rstrip()
                 line = line.split("|")
                 
-                if line[2].find("10-K") != -1:
+                try:
+                    if line[2].find("10-K") != -1:
 
-                    dict_10k['CIK'].append(line[0])
-                    dict_10k['Name'].append(line[1])
-                    dict_10k['Form'].append(line[2])
-                    dict_10k['Date'].append(line[3])
-                    dict_10k['URL'].append(line[4])
+                        dict_10k['CIK'].append(line[0])
+                        dict_10k['Name'].append(line[1])
+                        dict_10k['Form'].append(line[2])
+                        dict_10k['Date'].append(line[3])
+                        dict_10k['URL'].append(line[4])
+                except:
+                    print("LINE: {}".format(line))
 
         # save all 10ks to a csv
-        filename = self.make_directory("10K_Filings.csv")
         df = pd.DataFrame(dict_10k)
-        df.to_csv(filename, index=False, header=True)
+        return df
 
     # grabs all the 10q filings from a master file
     def master_10q(self, filename):
@@ -152,7 +156,7 @@ class EdgarData:
                     dict_10q['URL'].append(line[4])
 
         # save all 10qs to a csv
-        filename = self.make_directory("10Q_Filings.csv")
+        filename = "{}/10Q_Filings.csv".format(self.directory)
         df = pd.DataFrame(dict_10q)
         df.to_csv(filename, index=False, header=True)
 
@@ -182,7 +186,7 @@ class EdgarData:
                     dict_8k['URL'].append(line[4])
         
         # save all 8ks to a csv
-        filename = self.make_directory("8K_Filings.csv")
+        filename = "{}/8K_Filings.csv".format(self.directory)
         df = pd.DataFrame(dict_8k)
         df.to_csv(filename, index=False, header=True)    
 
@@ -191,20 +195,107 @@ class EdgarData:
         filename = self.directory + "/urls.csv"
         df = pd.read_csv(filename)
         urls = df['URLs']
+        all_masters = {}
+        max_len = -1
 
-        for index, url in enumerate(urls):
+        for url in enumerate(urls):
             masters = self.index_master_urls(url)
 
-            if index == 10: break
-
             if masters != None:
-                url = url[url.find("index")+6:]
-                url = url.replace("/", "")
-                url = url[:url.find("Q")] + "_" + url[url.find("Q"):] + ".csv"
+                filename = url[url.find("index")+6:]
+                filename = filename.replace("/", "")
+                filename = filename[:filename.find("Q")] + "_" + filename[filename.find("Q"):]
 
-                filename = self.make_directory(url)
-                df = pd.DataFrame({'URLs' : masters})
-                df.to_csv(filename, index=False, header=True)
+                all_masters[filename] = masters
 
-test = EdgarData("test")
-test.csv_daily_urls()
+                if max_len < len(masters):
+                    max_len = len(masters)
+        
+        for key in all_masters.keys():
+            if len(all_masters[key]) != max_len:
+                filler = [None]*(max_len - len(all_masters[key]))
+                all_masters[key].extend(filler)
+
+        filename = "{}/masters.csv".format(self.directory)
+        df = pd.DataFrame(all_masters)
+        df.to_csv(filename, index=False, header=True)
+    
+    # downloads all the master files
+    def master_download(self):
+        filename = self.directory + "/masters.csv"
+        df = pd.read_csv(filename)
+        
+        try:
+            masters_dir = "{}/masters".format(self.directory)
+            os.mkdir(masters_dir)
+        except:
+            print("{} already exists".format(masters_dir))
+
+        for col in df:
+            temp = df[col]
+            temp.dropna(inplace=True)
+            
+            try:
+                yq_dir = "{}/{}".format(masters_dir, col)
+                os.mkdir(yq_dir)
+                print(yq_dir)
+            except:
+                print("{} already exists".format(yq_dir))
+
+            for url in temp:
+                page = self.limit_request(url)
+                content = page.content
+
+                filename = url[url.find("master"):]
+                filename = filename.replace(".idx", "")
+                filename = filename + ".txt"
+                print(filename)
+
+                filename = "{}/{}".format(yq_dir, filename)
+                with open(filename, 'wb') as f:
+                    f.write(content)
+                
+    # loops through all the master files and parses out the 10ks
+    def master_to_10k(self):
+        
+        # creates a folder for all 10ks
+        try:
+            filename = "{}/10k".format(self.directory)
+            os.mkdir(filename)
+        except:
+            print("{} already exists".format(filename))
+
+
+        filename = "{}/masters".format(self.directory)
+        directories = list(os.walk(filename))
+        directories = directories[1:]
+
+        for index, directory in enumerate(directories):
+            dir_name = str(directory[0])
+
+            try:
+                temp = dir_name[:dir_name.find("masters")] + "10k" + dir_name[dir_name.find("masters")+7:]
+                os.mkdir(temp)
+            except:
+                print("{} already exists".format(temp))
+            
+            for filename in os.listdir(dir_name):
+                file_path = "{}/{}".format(dir_name, filename)
+
+                df = self.master_10k(file_path)
+                # print(df)
+
+
+dir_name = OUTPUT_DIR
+url = r"https://www.sec.gov/Archives/edgar/daily-index/2013/QTR1/master.20130104.idx.gz"
+filename = "{}/master.20130104.idx.gz".format(dir_name)
+content = requests.get(url).content
+
+with open(filename, 'wb') as f:
+    f.write(content)
+
+# print(content)
+
+with gzip.open(filename, 'rb') as f_in:
+    with open('file.txt', 'wb') as f_out:
+        shutil.copyfileobj(f_in, f_out)
