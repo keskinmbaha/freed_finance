@@ -20,7 +20,7 @@ class EdgarData:
         try:
             os.mkdir(self.directory)
         except:
-            print("{} already exists".format(self.directory))
+            print("Already Exists: {}".format(self.directory))
 
     # limits the number of requests to less than 10 per second
     def limit_request(self, url):
@@ -67,7 +67,7 @@ class EdgarData:
             for ii in range(1,5):
                 daily_urls.append(self.make_url(base_url, [i, 'QTR{}/'.format(ii)]))
 
-        filename = "{}/urls.csv".format(self.directory)
+        filename = "{}/urls.csv".format(OUTPUT_DIR)
         df = pd.DataFrame({'URLs' : daily_urls})
         df.to_csv(filename, index=False, header=True)
 
@@ -192,13 +192,13 @@ class EdgarData:
 
     # create a csv of all the master urls
     def csv_index_master_urls(self):
-        filename = self.directory + "/urls.csv"
+        filename = "{}/urls.csv".format(OUTPUT_DIR)
         df = pd.read_csv(filename)
-        urls = df['URLs']
         all_masters = {}
         max_len = -1
 
-        for url in enumerate(urls):
+        for index, row in df.iterrows():
+            url = row['URLs']
             masters = self.index_master_urls(url)
 
             if masters != None:
@@ -216,20 +216,20 @@ class EdgarData:
                 filler = [None]*(max_len - len(all_masters[key]))
                 all_masters[key].extend(filler)
 
-        filename = "{}/masters.csv".format(self.directory)
+        filename = "{}/masters.csv".format(OUTPUT_DIR)
         df = pd.DataFrame(all_masters)
         df.to_csv(filename, index=False, header=True)
     
     # downloads all the master files
     def master_download(self):
-        filename = self.directory + "/masters.csv"
+        filename = "{}/masters.csv".format(OUTPUT_DIR)
         df = pd.read_csv(filename)
         
         try:
             masters_dir = "{}/masters".format(self.directory)
             os.mkdir(masters_dir)
         except:
-            print("{} already exists".format(masters_dir))
+            print("Already Exists: {}".format(masters_dir))
 
         for col in df:
             temp = df[col]
@@ -240,7 +240,7 @@ class EdgarData:
                 os.mkdir(yq_dir)
                 print(yq_dir)
             except:
-                print("{} already exists".format(yq_dir))
+                print("Already Exists: {}".format(yq_dir))
 
             for url in temp:
                 page = self.limit_request(url)
@@ -263,7 +263,7 @@ class EdgarData:
             filename = "{}/10k".format(self.directory)
             os.mkdir(filename)
         except:
-            print("{} already exists".format(filename))
+            print("Already Exists: {}".format(filename))
 
 
         filename = "{}/masters".format(self.directory)
@@ -277,7 +277,7 @@ class EdgarData:
                 temp = dir_name[:dir_name.find("masters")] + "10k" + dir_name[dir_name.find("masters")+7:]
                 os.mkdir(temp)
             except:
-                print("{} already exists".format(temp))
+                print("Already Exists: {}".format(temp))
             
             for filename in os.listdir(dir_name):
                 file_path = "{}/{}".format(dir_name, filename)
@@ -285,17 +285,20 @@ class EdgarData:
                 df = self.master_10k(file_path)
                 # print(df)
 
+test = EdgarData('test')
+test.csv_daily_urls()
+test.csv_index_master_urls()
 
-dir_name = OUTPUT_DIR
-url = r"https://www.sec.gov/Archives/edgar/daily-index/2013/QTR1/master.20130104.idx.gz"
-filename = "{}/master.20130104.idx.gz".format(dir_name)
-content = requests.get(url).content
+# dir_name = OUTPUT_DIR
+# url = r"https://www.sec.gov/Archives/edgar/daily-index/2013/QTR1/master.20130104.idx.gz"
+# filename = "{}/master.20130104.idx.gz".format(dir_name)
+# content = requests.get(url).content
 
-with open(filename, 'wb') as f:
-    f.write(content)
+# with open(filename, 'wb') as f:
+#     f.write(content)
 
-# print(content)
+# # print(content)
 
-with gzip.open(filename, 'rb') as f_in:
-    with open('file.txt', 'wb') as f_out:
-        shutil.copyfileobj(f_in, f_out)
+# with gzip.open(filename, 'rb') as f_in:
+#     with open('file.txt', 'wb') as f_out:
+#         shutil.copyfileobj(f_in, f_out)
