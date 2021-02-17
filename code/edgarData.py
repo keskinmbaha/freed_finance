@@ -355,8 +355,8 @@ class EdgarData:
 
 # main function for testing out the code
 def main():
-    test = EdgarData('test')
-    test.csv_daily_urls()
+    lets_force_a_merge_conflict = EdgarData('test')
+    lets_force_a_merge_conflict.csv_daily_urls()
 
     # dir_name = OUTPUT_DIR
     # url = r"https://www.sec.gov/Archives/edgar/daily-index/2013/QTR1/master.20130104.idx.gz"
