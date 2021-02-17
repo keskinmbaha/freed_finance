@@ -27,7 +27,7 @@ class EdgarData:
 
 
     # limits the number of requests to less than 10 per second
-    def limit_request(self, url):
+    def __limit_request(self, url):
         global NUM_REQUESTS, START_TIME
 
         # if the number of requests is above 10, see how long it took to make them
@@ -52,7 +52,7 @@ class EdgarData:
 
 
     # returns a url with all items in comp appended to url
-    def make_url(self, base , components):
+    def __make_url(self, base , components):
 
         # loops through the components and adds them to the base url
         for component in components:
@@ -66,10 +66,10 @@ class EdgarData:
 
         # creates a url in the format of a json file
         base_url = r"https://www.sec.gov/Archives/edgar/daily-index"
-        url = self.make_url(base_url, ['index.json'])
+        url = self.__make_url(base_url, ['index.json'])
 
         # makes a request and manipulates the response to get all the filiings
-        page = self.limit_request(url)
+        page = self.__limit_request(url)
         content = page.json()
         filings = content['directory']['item']
 
@@ -90,7 +90,7 @@ class EdgarData:
         # goes from the earliest year to the latest and creates urls for each year/quarter
         for i in range(earliest, latest+1):
             for ii in range(1,5):
-                daily_urls.append(self.make_url(base_url, [i, 'QTR{}/'.format(ii)]))
+                daily_urls.append(self.__make_url(base_url, [i, 'QTR{}/'.format(ii)]))
 
         # creates the urls.csv file in the output dir
         filename = "{}/urls.csv".format(OUTPUT_DIR)
@@ -103,8 +103,8 @@ class EdgarData:
 
         # creates a json url for the given daily index url
         url = url[:len(url)-1]
-        json_url = self.make_url(url, ['index.json'])
-        page = self.limit_request(json_url)
+        json_url = self.__make_url(url, ['index.json'])
+        page = self.__limit_request(json_url)
 
         # create a list to hold the master urls
         masters = []
@@ -120,7 +120,7 @@ class EdgarData:
 
                 # if a master filename exists, make a url out of it and store it
                 if name.find("master") != -1:
-                    master_url = self.make_url(url, [master['name']])
+                    master_url = self.__make_url(url, [master['name']])
                     masters.append(master_url)
 
         # if it doesn't, print out an error message, and return nothing
@@ -208,7 +208,7 @@ class EdgarData:
             for url in temp:
 
                 # makes a request using the master url
-                page = self.limit_request(url)
+                page = self.__limit_request(url)
                 content = page.content
 
                 # creates a filename with the .txt extension
@@ -355,8 +355,8 @@ class EdgarData:
 
 # main function for testing out the code
 def main():
-    test = EdgarData('test')
-    test.csv_daily_urls()
+    # test = EdgarData('test')
+    # test.csv_daily_urls()
 
     # dir_name = OUTPUT_DIR
     # url = r"https://www.sec.gov/Archives/edgar/daily-index/2013/QTR1/master.20130104.idx.gz"
