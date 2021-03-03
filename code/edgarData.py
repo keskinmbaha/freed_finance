@@ -62,7 +62,7 @@ class EdgarData:
 
 
     # creates a csv of all (plus a few trash) daily index urls
-    def csv_daily_urls(self):
+    def indices_to_csv(self):
 
         # creates a url in the format of a json file
         base_url = r"https://www.sec.gov/Archives/edgar/daily-index"
@@ -99,7 +99,7 @@ class EdgarData:
 
 
     # grabs all the master file urls in a given daily index urls
-    def index_master_urls(self, url):
+    def __index_grab_masters(self, url):
 
         # creates a json url for the given daily index url
         url = url[:len(url)-1]
@@ -131,8 +131,8 @@ class EdgarData:
         return masters
 
 
-    # create a csv of all the master urls for all daily index urls
-    def csv_index_master_urls(self):
+    # create a csv of all the master urls from all daily index urls
+    def masters_csv(self):
 
         # opens the urls.csv
         filename = "{}/urls.csv".format(OUTPUT_DIR)
@@ -148,7 +148,7 @@ class EdgarData:
 
             # grabs the url and grabs all the master files from that url
             url = row['URLs']
-            masters = self.index_master_urls(url)
+            masters = self.__index_grab_masters(url)
 
             # makes sure the page exists
             if masters != None:
@@ -177,7 +177,7 @@ class EdgarData:
     
 
     # downloads all the master files
-    def master_download(self):
+    def masters_download(self):
 
         # opens up the masters.csv file
         filename = "{}/masters.csv".format(OUTPUT_DIR)
@@ -210,18 +210,45 @@ class EdgarData:
                 # makes a request using the master url
                 page = self.__limit_request(url)
                 content = page.content
+                
+                # grabs the raw filename
+                filename = url[url.find("master"):]
 
                 # creates a filename with the .txt extension
                 # TODO FIX FOR ZIPPED FILES
-                filename = url[url.find("master"):]
-                filename = filename.replace(".idx", "")
-                filename = filename + ".txt"
-                print(filename)
 
-                # downloads the master file to its respective folder
-                filename = "{}/{}".format(yq_dir, filename)
-                with open(filename, 'wb') as f:
-                    f.write(content)
+                # if the file is zipped, unzip and save the file
+                if filename.find(".gz") != -1:
+                    with open(filename, 'wb') as f:
+                        f.write(content)
+
+                    # creates the saved filename
+                    saved_name = filename.replace(".idx", "")
+                    saved_name = saved_name.replace(".gz", "")
+                    saved_name = saved_name + ".txt"
+                    print(saved_name)
+
+                    # unzips the zipped master file
+                    saved_name = "{}/{}".format(yq_dir, saved_name)
+                    with gzip.open(filename, 'rb') as f_in:
+                        with open(saved_name, 'wb') as f_out:
+                            shutil.copyfileobj(f_in, f_out)
+                    
+                    # deletes the zipped master file
+                    os.remove(filename)
+
+                # if it is not zipped, save the file
+                else:
+
+                    # creates the saved filename
+                    saved_name = filename.replace(".idx", "")
+                    saved_name = saved_name + ".txt"
+                    print(saved_name)
+
+                    # downloads the master file to its respective folder
+                    saved_name = "{}/{}".format(yq_dir, saved_name)
+                    with open(saved_name, 'wb') as f:
+                        f.write(content)
 
 
     # grabs all the 10k filings from a master file
@@ -356,7 +383,8 @@ class EdgarData:
 # main function for testing out the code
 def main():
     test = EdgarData('test')
-    test.csv_daily_urls()
+    test.masters_download()
+    print("Done")
 
     # dir_name = OUTPUT_DIR
     # url = r"https://www.sec.gov/Archives/edgar/daily-index/2013/QTR1/master.20130104.idx.gz"
